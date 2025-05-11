@@ -1,19 +1,18 @@
-import pytest
 import asyncio
-from unittest.mock import AsyncMock, patch, mock_open
+import sys
+from unittest.mock import AsyncMock, patch
+
+import pytest
 from aiohttp import ClientSession
 from aioresponses import aioresponses
-from fetcher import fetch_url, fetch_data, main
-import sys
-from fetcher import run_from_cli
 
+from fetcher import fetch_url, fetch_data, main, run_from_cli  # pylint: disable=import-error
 
 
 @pytest.mark.asyncio
 async def test_fetch_url_success():
     with aioresponses() as m:
         m.get("http://example.com", status=200, body="cat dog cat lion")
-
         async with ClientSession() as session:
             result = await fetch_url(session, "http://example.com", k=2)
             assert "cat" in result
@@ -23,7 +22,6 @@ async def test_fetch_url_success():
 async def test_fetch_url_client_response_error():
     with aioresponses() as m:
         m.get("http://bad-url.com", status=404)
-
         async with ClientSession() as session:
             result = await fetch_url(session, "http://bad-url.com", k=2)
             assert result is None
@@ -31,10 +29,8 @@ async def test_fetch_url_client_response_error():
 
 @pytest.mark.asyncio
 async def test_fetch_url_timeout_error():
-    import asyncio
     with aioresponses() as m:
         m.get("http://timeout.com", exception=asyncio.TimeoutError)
-
         async with ClientSession() as session:
             result = await fetch_url(session, "http://timeout.com", k=2)
             assert result is None
@@ -44,10 +40,10 @@ async def test_fetch_url_timeout_error():
 async def test_fetch_url_generic_error():
     with aioresponses() as m:
         m.get("http://oops.com", exception=Exception("Unexpected"))
-
         async with ClientSession() as session:
             result = await fetch_url(session, "http://oops.com", k=2)
             assert result is None
+
 
 @pytest.mark.asyncio
 async def test_fetch_data_processes_url():
@@ -61,31 +57,28 @@ async def test_fetch_data_processes_url():
         await fetch_data(worker_id=1, urls_que=queue, session=session, k=2)
         mock_fetch.assert_called_once_with(session, "http://test.com", 2)
 
+
 @pytest.mark.asyncio
 async def test_main_runs_all_workers(tmp_path):
     url_file = tmp_path / "urls.txt"
     url_file.write_text("http://a.com\nhttp://b.com\n")
 
-    # Patch fetch_url, чтобы оно сразу завершалось
     with patch("fetcher.fetch_url", new=AsyncMock(return_value="data")) as mock_fetch:
         try:
             await asyncio.wait_for(
                 main(c=2, k=2, url_file=str(url_file)),
-                timeout=3  # ⏱ гарантирует, что тест не зависнет навсегда
+                timeout=3
             )
         except asyncio.TimeoutError:
             pytest.fail("main завис — возможно, воркеры не завершились")
 
-        # Убедимся, что два вызова были
         assert mock_fetch.call_count == 2
 
 
-def test_run_from_cli_runs_main(monkeypatch):
-    # Подделываем sys.argv, как будто вызов был из консоли
+def test_run_from_cli_runs_main():
     test_args = ["script_name", "-c", "3", "-k", "2", "urls.txt"]
-    
-    with patch.object(sys, 'argv', test_args), \
+
+    with patch.object(sys, "argv", test_args), \
          patch("fetcher.main", new=AsyncMock()) as mock_main:
-        
         run_from_cli()
         mock_main.assert_awaited_once_with(3, 2, "urls.txt")
