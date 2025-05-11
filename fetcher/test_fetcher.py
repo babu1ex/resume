@@ -6,7 +6,7 @@ import pytest
 from aiohttp import ClientSession
 from aioresponses import aioresponses
 
-from fetcher import fetch_url, fetch_data, main, run_from_cli  # pylint: disable=import-error
+from  import fetch_url, fetch_data, main, run_from_cli
 
 
 @pytest.mark.asyncio
